@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MatrixMotion 物理模擬器</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 600px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .input-group { margin-bottom: 10px; }
+        label { display: inline-block; width: 180px; font-weight: bold; }
+        input { padding: 5px; width: 100px; }
+        button { margin-top: 15px; padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #007bff; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>MatrixMotion 物理模擬器 (網頁版)</h2>
+    <div class="input-group"><label>物體質量 (kg):</label><input type="number" id="m" value="1"></div>
+    <div class="input-group"><label>初始 X 座標 (m):</label><input type="number" id="x0" value="0"></div>
+    <div class="input-group"><label>初始 Y 座標 (m):</label><input type="number" id="y0" value="0"></div>
+    <div class="input-group"><label>初始 X 速度 (m/s):</label><input type="number" id="vx0" value="10"></div>
+    <div class="input-group"><label>初始 Y 速度 (m/s):</label><input type="number" id="vy0" value="10"></div>
+    <div class="input-group"><label>X 方向受力 (N):</label><input type="number" id="fx" value="0"></div>
+    <div class="input-group"><label>Y 方向受力 (N):</label><input type="number" id="fy" value="-9.8"></div>
+    
+    <button onclick="runSimulation()">開始模擬</button>
+
+    <table id="resultTable" style="display:none;">
+        <thead>
+            <tr>
+                <th>時間(s)</th>
+                <th>位置 (X, Y)</th>
+                <th>動量 (Px, Py)</th>
+                <th>角動量 (L)</th>
+            </tr>
+        </thead>
+        <tbody id="resultBody"></tbody>
+    </table>
+</div>
+
+<script>
+function runSimulation() {
+    const m = parseFloat(document.getElementById('m').value);
+    let x = parseFloat(document.getElementById('x0').value);
+    let y = parseFloat(document.getElementById('y0').value);
+    let vx = parseFloat(document.getElementById('vx0').value);
+    let vy = parseFloat(document.getElementById('vy0').value);
+    const fx = parseFloat(document.getElementById('fx').value);
+    const fy = parseFloat(document.getElementById('fy').value);
+
+    let t = 0.0;
+    const dt = 0.1;
+    const total_time = 2.0;
+
+    const tbody = document.getElementById('resultBody');
+    tbody.innerHTML = ''; // 清空舊數據
+    document.getElementById('resultTable').style.display = 'table';
+
+    while (t <= total_time) {
+        let px = m * vx;
+        let py = m * vy;
+        let L = x * py - y * px; // 二維角動量外積
+
+        let row = `<tr>
+            <td>${t.toFixed(1)}</td>
+            <td>(${x.toFixed(2)}, ${y.toFixed(2)})</td>
+            <td>(${px.toFixed(2)}, ${py.toFixed(2)})</td>
+            <td>${L.toFixed(2)}</td>
+        </tr>`;
+        tbody.innerHTML += row;
+
+        // 更新速度與位置
+        vx += (fx / m) * dt;
+        vy += (fy / m) * dt;
+        x += vx * dt;
+        y += vy * dt;
+        t += dt;
+    }
+}
+</script>
+
+</body>
+</html>
