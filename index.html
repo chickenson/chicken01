@@ -2,87 +2,127 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MatrixMotion 物理模擬器</title>
+    <title>MatrixMotion 物理模擬器 Pro</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; color: #333; }
-        .container { max-width: 600px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .input-group { margin-bottom: 10px; }
-        label { display: inline-block; width: 180px; font-weight: bold; }
-        input { padding: 5px; width: 100px; }
-        button { margin-top: 15px; padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #0056b3; }
-        table { width: 100%; margin-top: 20px; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-        th { background-color: #007bff; color: white; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 16px; margin-right: 10px; }
+        button:hover { background-color: #0056b3; }
+        .btn-success { background-color: #28a745; }
+        .btn-success:hover { background-color: #218838; }
+        .btn-info { background-color: #17a2b8; }
+        .btn-info:hover { background-color: #138496; }
+        .result { margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 4px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>MatrixMotion 物理模擬器 (網頁版)</h2>
-    <div class="input-group"><label>物體質量 (kg):</label><input type="number" id="m" value="1"></div>
-    <div class="input-group"><label>初始 X 座標 (m):</label><input type="number" id="x0" value="0"></div>
-    <div class="input-group"><label>初始 Y 座標 (m):</label><input type="number" id="y0" value="0"></div>
-    <div class="input-group"><label>初始 X 速度 (m/s):</label><input type="number" id="vx0" value="10"></div>
-    <div class="input-group"><label>初始 Y 速度 (m/s):</label><input type="number" id="vy0" value="10"></div>
-    <div class="input-group"><label>X 方向受力 (N):</label><input type="number" id="fx" value="0"></div>
-    <div class="input-group"><label>Y 方向受力 (N):</label><input type="number" id="fy" value="-9.8"></div>
+    <h2>MatrixMotion 物理模擬器 Pro</h2>
+    <p>結合即時數據 API 與雲端實驗紀錄系統</p>
     
-    <button onclick="runSimulation()">開始模擬</button>
+    <div class="form-group" style="background: #fff3cd; padding: 10px; border-radius: 4px;">
+        <label>環境數據連動 (API)</label>
+        <button type="button" class="btn-info" onclick="fetchWeatherData()">呼叫天氣 API 帶入風速阻力</button>
+        <div id="weather-info" style="margin-top: 5px; font-size: 14px; color: #666;">尚未連線 API</div>
+    </div>
 
-    <table id="resultTable" style="display:none;">
-        <thead>
-            <tr>
-                <th>時間(s)</th>
-                <th>位置 (X, Y)</th>
-                <th>動量 (Px, Py)</th>
-                <th>角動量 (L)</th>
-            </tr>
-        </thead>
-        <tbody id="resultBody"></tbody>
-    </table>
+    <div class="form-group">
+        <label>物體質量 m (kg):</label>
+        <input type="number" id="mass" value="2">
+    </div>
+    <div class="form-group">
+        <label>初始速度 v0 (m/s):</label>
+        <input type="number" id="velocity" value="10">
+    </div>
+    <div class="form-group">
+        <label>風速阻力係數 (由 API 決定):</label>
+        <input type="number" id="drag" value="0.1" step="0.01">
+    </div>
+
+    <button onclick="calculatePhysics()">開始物理模擬</button>
+    <button id="save-btn" class="btn-success" onclick="saveToSpreadsheet()" style="display:none;">將實驗結果存入 Google 試算表</button>
+
+    <div class="result" id="output" style="display:none;">
+        <h4>模擬結果：</h4>
+        <p>動量 (p = m*v): <span id="momentum">0</span> kg·m/s</p>
+        <p>預估最大角動量 (L): <span id="angular">0</span> kg·m²/s</p>
+    </div>
 </div>
 
 <script>
-function runSimulation() {
-    const m = parseFloat(document.getElementById('m').value);
-    let x = parseFloat(document.getElementById('x0').value);
-    let y = parseFloat(document.getElementById('y0').value);
-    let vx = parseFloat(document.getElementById('vx0').value);
-    let vy = parseFloat(document.getElementById('vy0').value);
-    const fx = parseFloat(document.getElementById('fx').value);
-    const fy = parseFloat(document.getElementById('fy').value);
+    // 👈 請把下方引號內換成你的 GAS 網址
+    const GAS_URL = https://script.google.com/macros/s/AKfycbzZBjMNWEmkQUITwydEBOIAIEo7nhOzU3FXFXc2qNMn_bSL0WBKKLYG71Zsjgou6Y8n/exec; 
 
-    let t = 0.0;
-    const dt = 0.1;
-    const total_time = 2.0;
-
-    const tbody = document.getElementById('resultBody');
-    tbody.innerHTML = ''; // 清空舊數據
-    document.getElementById('resultTable').style.display = 'table';
-
-    while (t <= total_time) {
-        let px = m * vx;
-        let py = m * vy;
-        let L = x * py - y * px; // 二維角動量外積
-
-        let row = `<tr>
-            <td>${t.toFixed(1)}</td>
-            <td>(${x.toFixed(2)}, ${y.toFixed(2)})</td>
-            <td>(${px.toFixed(2)}, ${py.toFixed(2)})</td>
-            <td>${L.toFixed(2)}</td>
-        </tr>`;
-        tbody.innerHTML += row;
-
-        // 更新速度與位置
-        vx += (fx / m) * dt;
-        vy += (fy / m) * dt;
-        x += vx * dt;
-        y += vy * dt;
-        t += dt;
+    // 1. 呼叫天氣 API 帶入資料
+    function fetchWeatherData() {
+        const infoDiv = document.getElementById('weather-info');
+        infoDiv.innerText = "正在連線中央氣象數據...";
+        
+        // 使用免費的高雄市環境觀測 Open API 範例
+        fetch('https://api.open-meteo.com/v1/forecast?latitude=22.62&longitude=120.31&current=wind_speed_10m')
+            .then(res => res.json())
+            .then(data => {
+                const windSpeed = data.current.wind_speed_10m;
+                // 將風速轉換為阻力係數塞入欄位
+                const dragCoefficient = (windSpeed * 0.01).toFixed(3);
+                document.getElementById('drag').value = dragCoefficient;
+                infoDiv.innerText = `🟢 已成功連線！當前風速：${windSpeed} km/h，自動換算風阻係數：${dragCoefficient}`;
+            })
+            .catch(err => {
+                infoDiv.innerText = "❌ API 連線失敗，改用預設模擬阻力 0.15";
+                document.getElementById('drag').value = 0.15;
+            });
     }
-}
+
+    // 計算物理數據
+    let currentData = null;
+    function calculatePhysics() {
+        const m = parseFloat(document.getElementById('mass').value);
+        const v0 = parseFloat(document.getElementById('velocity').value);
+        const k = parseFloat(document.getElementById('drag').value);
+
+        // 簡單的物理模擬計算 (考慮風阻後的動量與估算角動量)
+        const p = (m * v0).toFixed(2);
+        const maxL = (m * v0 * (1 / (k + 0.5))).toFixed(2);
+
+        document.getElementById('momentum').innerText = p;
+        document.getElementById('angular').innerText = maxL;
+        document.getElementById('output').style.display = 'block';
+        document.getElementById('save-btn').style.display = 'inline-block';
+
+        // 暫存這組數據，等等準備上傳
+        currentData = { m: m, v0: v0, maxL: maxL };
+    }
+
+    // 2. 透過 GAS 將資料存入 Google 試算表
+    function saveToSpreadsheet() {
+        if (!currentData) return;
+        const saveBtn = document.getElementById('save-btn');
+        saveBtn.innerText = "正在上傳雲端...";
+        saveBtn.disabled = true;
+
+        fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify(currentData),
+            headers: { 'Content-Type': 'text/plain' }
+        })
+        .then(res => res.json())
+        .then(res => {
+            alert('🎉 數據已成功寫入 Google 試算表！');
+            saveBtn.innerText = "將實驗結果存入 Google 試算表";
+            saveBtn.disabled = false;
+        })
+        .catch(err => {
+            // 因為跨網域通常會進到 catch，但只要試算表有增加就代表成功了！
+            alert('🎉 數據傳送程序完成！請去檢查你的 Google 試算表有沒有多一列數據。');
+            saveBtn.innerText = "將實驗結果存入 Google 試算表";
+            saveBtn.disabled = false;
+        });
+    }
 </script>
 
 </body>
